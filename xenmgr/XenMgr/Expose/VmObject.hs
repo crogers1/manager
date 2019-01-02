@@ -532,10 +532,10 @@ implementationFor xm uuid = self where
   , comCitrixXenclientXenmgrVmGetPrivateSpace = fromIntegral <$> getVmPrivateSpaceUsedMiB uuid
   , comCitrixXenclientXenmgrVmUnrestrictedGetPrivateSpace = fromIntegral <$> getVmPrivateSpaceUsedMiB uuid
 
-  --, comCitrixXenclientXenmgrVmProductGetOvfEnvXml = liftIO (getOvfEnvXml uuid)
-  --, comCitrixXenclientXenmgrVmProductListProductProperties = map productPropertyKV <$> vmPPList uuid 
-  --, comCitrixXenclientXenmgrVmProductGetProductProperty = \p -> vmPPGetValue uuid (PPUniqueID p)
-  --, comCitrixXenclientXenmgrVmProductSetProductProperty = \p v -> vmPPSetValue uuid (PPUniqueID p) v
+  , comCitrixXenclientXenmgrVmProductGetOvfEnvXml = liftIO (getOvfEnvXml uuid)
+  , comCitrixXenclientXenmgrVmProductListProductProperties = map productPropertyKV <$> vmPPList uuid 
+  , comCitrixXenclientXenmgrVmProductGetProductProperty = \p -> vmPPGetValue uuid (PPUniqueID p)
+  , comCitrixXenclientXenmgrVmProductSetProductProperty = \p v -> vmPPSetValue uuid (PPUniqueID p) v
 
   , comCitrixXenclientXenmgrVmGetRealm = getVmRealm uuid
   , comCitrixXenclientXenmgrVmUnrestrictedGetRealm = getVmRealm uuid
@@ -587,14 +587,14 @@ implementationFor xm uuid = self where
   , comCitrixXenclientXenmgrVmUnrestrictedSetV4v = setVmV4V uuid
 
   , comCitrixXenclientXenmgrVmGetRestrictDisplayDepth = getVmRestrictDisplayDepth uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetRestrictDisplayDepth = getVmRestrictDisplayDepth uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetRestrictDisplayDepth = getVmRestrictDisplayDepth uuid
   , comCitrixXenclientXenmgrVmSetRestrictDisplayDepth = restrict' $ setVmRestrictDisplayDepth uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetRestrictDisplayDepth = setVmRestrictDisplayDepth uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedSetRestrictDisplayDepth = setVmRestrictDisplayDepth uuid
 
   , comCitrixXenclientXenmgrVmGetRestrictDisplayRes = getVmRestrictDisplayRes uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetRestrictDisplayRes = getVmRestrictDisplayRes uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetRestrictDisplayRes = getVmRestrictDisplayRes uuid
   , comCitrixXenclientXenmgrVmSetRestrictDisplayRes = restrict' $ setVmRestrictDisplayRes uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetRestrictDisplayRes = setVmRestrictDisplayRes uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedSetRestrictDisplayRes = setVmRestrictDisplayRes uuid
 
   , comCitrixXenclientXenmgrVmGetInitrdExtract = getVmInitrdExtract uuid
   , comCitrixXenclientXenmgrVmUnrestrictedGetInitrdExtract = getVmInitrdExtract uuid
@@ -602,39 +602,39 @@ implementationFor xm uuid = self where
   , comCitrixXenclientXenmgrVmUnrestrictedSetInitrdExtract = setVmInitrdExtract uuid
 
   , comCitrixXenclientXenmgrVmGetPreserveOnReboot = getVmPreserveOnReboot uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetPreserveOnReboot = getVmPreserveOnReboot uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetPreserveOnReboot = getVmPreserveOnReboot uuid
   , comCitrixXenclientXenmgrVmSetPreserveOnReboot = restrict' $ setVmPreserveOnReboot uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetPreserveOnReboot = setVmPreserveOnReboot uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedSetPreserveOnReboot = setVmPreserveOnReboot uuid
 
   , comCitrixXenclientXenmgrVmGetBootSentinel = fromMaybe "" <$> getVmBootSentinel uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetBootSentinel = fromMaybe "" <$> getVmBootSentinel uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetBootSentinel = fromMaybe "" <$> getVmBootSentinel uuid
   , comCitrixXenclientXenmgrVmSetBootSentinel = (restrict' $ setVmBootSentinel uuid) . stom
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetBootSentinel = (setVmBootSentinel uuid) . stom
+  , comCitrixXenclientXenmgrVmUnrestrictedSetBootSentinel = (setVmBootSentinel uuid) . stom
 
   , comCitrixXenclientXenmgrVmGetHpet = getVmHpet uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetHpet = getVmHpet uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetHpet = getVmHpet uuid
   , comCitrixXenclientXenmgrVmSetHpet = restrict' $ setVmHpet uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetHpet = setVmHpet uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedSetHpet = setVmHpet uuid
 
   , comCitrixXenclientXenmgrVmGetTimerMode = getVmTimerMode uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetTimerMode = getVmTimerMode uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetTimerMode = getVmTimerMode uuid
   , comCitrixXenclientXenmgrVmSetTimerMode = (restrict' $ setVmTimerMode uuid)
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetTimerMode = (setVmTimerMode uuid)
+  , comCitrixXenclientXenmgrVmUnrestrictedSetTimerMode = (setVmTimerMode uuid)
 
   , comCitrixXenclientXenmgrVmGetNestedhvm = getVmNestedHvm uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetNestedhvm = getVmNestedHvm uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetNestedhvm = getVmNestedHvm uuid
   , comCitrixXenclientXenmgrVmSetNestedhvm = restrict' $ setVmNestedHvm uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetNestedhvm = setVmNestedHvm uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedSetNestedhvm = setVmNestedHvm uuid
 
   , comCitrixXenclientXenmgrVmGetSerial = getVmSerial uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetSerial = getVmSerial uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetSerial = getVmSerial uuid
   , comCitrixXenclientXenmgrVmSetSerial = restrict' $ setVmSerial uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetSerial = setVmSerial uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedSetSerial = setVmSerial uuid
 
   , comCitrixXenclientXenmgrVmGetBios = getVmBios uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedGetBios = getVmBios uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedGetBios = getVmBios uuid
   , comCitrixXenclientXenmgrVmSetBios = restrict' $ setVmBios uuid
-  --, comCitrixXenclientXenmgrVmUnrestrictedSetBios = setVmBios uuid
+  , comCitrixXenclientXenmgrVmUnrestrictedSetBios = setVmBios uuid
 
   } where
     stom "" = Nothing
