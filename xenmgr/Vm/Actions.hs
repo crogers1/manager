@@ -910,7 +910,7 @@ bootVm config reboot
 
       handleCreationPhases :: XM ()
       handleCreationPhases = do
-        waitForVmInternalState uuid CreatingDevices Running 30
+        --waitForVmInternalState uuid CreatingDevices Running 30
 
         --Move these tasks up earlier in the guest boot process. Prevents the need
         --for XL to implement a handshake with xenmgr for v4v firewall rules. Also speeds up
@@ -923,7 +923,7 @@ bootVm config reboot
           whenDomainID_ uuid $ \domid -> do
             liftIO $ xsWrite (domainXSPath domid ++ "/v4v-firewall-ready") "1"
 
-        waitForVmInternalState uuid Created Running 30
+        --waitForVmInternalState uuid Created Running 30
         -- BEFORE DEVICE MODEL
         info $ "pre-dm setup for " ++ show uuid
         liftRpc $ do 
@@ -948,7 +948,7 @@ bootVm config reboot
           when vkb_enabled $ inputDbusCalls uuid
           info $ "done pre-dm setup for " ++ show uuid
          
-        waitForVmInternalState uuid Created Running 60
+        --waitForVmInternalState uuid Created Running 60
         sentinel <- sentinelPath
         -- allow writing to sentinel
         maybe (return()) (\p -> liftIO $ xsWrite p "" >> xsChmod p "b0") sentinel
