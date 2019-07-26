@@ -507,7 +507,16 @@ reactVmAcpiUpdate = do
           Just acpi -> if acpi == "s3" then do switchVm domainUIVM 
                                                notifyVmAcpiState 3
                                                return () 
-                                       else return () 
+                                       else if acpi == "s5" then do
+                                               f_uuid <- liftRpc $ getFocusVm
+                                               if uuid == f_uuid then do 
+                                                 switchVm domainUIVM
+                                                 notifyVmAcpiState 5
+                                                 return ()
+                                               else 
+                                                 return ()
+                                       else
+                                         return () 
           Nothing   -> return () 
    
 -- This is a new notify function to support state updates coming from xl
