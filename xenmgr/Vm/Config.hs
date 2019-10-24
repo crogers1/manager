@@ -893,7 +893,7 @@ miscSpecs cfg = do
                                 "true"  -> name ++ "=" ++ "1"
                                 "false" -> name ++ "=" ++ "0"
                                 _       -> case name of
-                                             "viridian" -> name ++ "=" ++ (wrapBrackets $ wrapQuotes v)
+                                             "viridian" -> name ++ "=" ++ (wrapBrackets $ concat (intersperse "," $ map wrapQuotes $ words v))
                                              "serial"   -> name ++ "=" ++ (wrapBrackets $ wrapQuotes v)
                                              "iomem"   -> name ++ "=" ++ (wrapBrackets $ wrapQuotes v)
                                              "ioports"   -> name ++ "=" ++ (wrapBrackets $ wrapQuotes v)
