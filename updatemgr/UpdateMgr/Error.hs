@@ -43,6 +43,7 @@ data LocalErr = InternalError String
               | NoRepositories URL
                 -- Todo: Add reason, or so.
               | Forbidden
+              | UpdateForwardSealFailed
 
     deriving (Eq,Show)
 
@@ -80,6 +81,7 @@ message FailedSignatureVerification = "failed signature verification"
 message UpgradesPolicyDisabled = "upgrades disabled by policy settings"
 message (NoRepositories url) = "The file at URL " ++ show url ++ " does not contain any links to repositories."
 message Forbidden = "Forbidden"
+message UpdateForwardSealFailed = "sealing system has failed"
 
 code :: LocalErr -> Int
 code (InternalError m) = 301
@@ -97,3 +99,4 @@ code (CannotResolveHost _) = 312
 code (CannotConnectHost _) = 313
 code FailedSignatureVerification = 314
 code UpgradesPolicyDisabled = 315
+code UpdateForwardSealFailed = 316

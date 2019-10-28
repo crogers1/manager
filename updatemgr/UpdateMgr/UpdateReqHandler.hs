@@ -67,6 +67,7 @@ catchingLiftIO a = from =<< liftIO (E.try a) where
     from (Right x) = return x
     from (Left er)
         | Just E.ThreadKilled <- E.fromException er = throwError . localE $ DownloadWasCancelled
+        | show (er :: E.SomeException) == "SealFailure" = throwError . localE $ UpdateForwardSealFailed
         | otherwise = throwError . localE $ (InternalError $ show (er :: E.SomeException))
 
 updatemgrObjectPath :: ObjectPath
@@ -151,6 +152,7 @@ handleUpdateReq (SafeShellExecuteAndLogOutput cmd) =
              exitCode <- contents `seq` waitForProcess h
              case exitCode of
                ExitSuccess -> return contents
+               ExitFailure 2 -> error "SealFailure"
                _           -> error  $ "shell command: " ++ cmd ++ " FAILED."
 
     where
