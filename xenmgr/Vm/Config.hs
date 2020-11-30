@@ -832,7 +832,8 @@ miscSpecs cfg = do
       sound = maybeToList . fmap (("soundhw='"++) <$> (++"'")) <$> readConfigProperty uuid vmSound
 
       -- Tells xl to use a stubdom or not
-      stubdom | isHvm cfg && vmcfgStubdom cfg = return ["device_model_stubdomain_override=1"]
+      stubdom | isHvm cfg && vmcfgStubdom cfg = return ["stubdomain_ramdisk=/usr/lib/xen/boot/stubdomain-initramfs",
+                                                        "stubdomain_kernel=/usr/lib/xen/boot/stubdomain-bzImage"]
               | otherwise                     = return []
 
       -- Specifies path to qemu binary
