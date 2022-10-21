@@ -339,12 +339,18 @@ executePmActionInternal action supervised =
     when (action /= ActionNothing) $ do
       info $ "PM: received pm action request: " ++ show action
       current <- liftRpc getCurrentPmAction
-      case current of
-        Just c  -> info $ "PM: but pm action " ++ show c ++ " is currently running, so cannot do"
-        Nothing -> (do liftRpc $ setCurrentPmAction action
+      case (action, current) of
+        (ActionIdleShutdown, Just ActionIdleShutdown) -> info $ "PM: but pm action idle-shutdown is already running, so not doing"
+        (ActionIdleShutdown, _) -> do_action action supervised
+        (_, Just c) -> info $ "PM: but pm action " ++ show c ++ " is currently running, so cannot do"
+        (_, Nothing) -> do_action action supervised
+
+  where 
+    do_action action supervised =
+                   (do liftRpc $ setCurrentPmAction action
                        execute_ action supervised
                        liftRpc $ clearCurrentPmAction)
-                   `catchError` \err -> do
+                       `catchError` \err -> do
                            liftRpc $ clearCurrentPmAction
                            throwError err
 
