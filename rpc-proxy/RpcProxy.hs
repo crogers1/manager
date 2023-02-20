@@ -89,14 +89,14 @@ instance Monoid InOutTransforms where
   (InOutTransforms a b) `mappend` (InOutTransforms p q) =
       InOutTransforms (a `mappend` p) (b `mappend` q)
 
-proxy :: RulesCache -> Settings -> IO ()
-proxy rulesCache settings = do
+proxy :: RulesCache -> IO ()
+proxy rulesCache = do
   info "starting DBUS bouncer"
   (dispatcher, _) <- connectBus =<< systemBus
-  anonymous_xf <- if interceptAnonymousDestinations settings
+  anonymous_xf <- if interceptAnonymousDestinations (settings rulesCache)
                      then replaceAnonymousXF =<< rpcMkContext dispatcher
                      else return mempty
-  serverSock <- makeIncomingTransport (incomingChannel settings)
+  serverSock <- makeIncomingTransport (incomingChannel (settings rulesCache))
 
   debug $ "incoming transport: " ++ show serverSock
   -- we count forwarders for debug purposes within counter mvar
@@ -106,22 +106,22 @@ proxy rulesCache settings = do
     accept_incoming :: Channel -> IO (Channel, ArtefactSource)
     accept_incoming transport =
         do (client_socket, inc_domid) <- accept transport
-           let domid = fromMaybe inc_domid (incomingForcedDomID settings)
-           (,) <$> websockets client_socket <*> mkSource settings domid
+           let domid = fromMaybe inc_domid (incomingForcedDomID (settings rulesCache))
+           (,) <$> websockets client_socket <*> mkSource (settings rulesCache) domid
 
     incoming :: Dispatcher -> MVar Int -> Channel -> InOutTransforms -> IO ()
     -- talk over non socket fd
     incoming dispatcher counter serverSock@(FdChann _ _) anonymous_xf =
         do (clientSock, artefact_source) <- accept_incoming serverSock
            -- talk
-           conversation dispatcher counter settings rulesCache (clientSock,artefact_source) anonymous_xf
+           conversation dispatcher counter (settings rulesCache) (clientSock,artefact_source) anonymous_xf
            -- just quit rpc proxy after conversation is finished or error happens
     -- talk over socket
     incoming dispatcher counter serverSock anonymous_xf =
       go =<< E.try (accept_incoming serverSock) where
       go (Right (clientSock, artefact_source)) = do
            -- talk
-           forkIO $ conversation dispatcher counter settings rulesCache (clientSock,artefact_source) anonymous_xf
+           forkIO $ conversation dispatcher counter (settings rulesCache) (clientSock,artefact_source) anonymous_xf
            -- accept new
            incoming dispatcher counter serverSock anonymous_xf
       go (Left (err :: E.SomeException)) = do
@@ -130,7 +130,7 @@ proxy rulesCache settings = do
         incoming dispatcher counter serverSock anonymous_xf
 
     websockets ch
-      | not (websocketsIn settings) = return ch
+      | not (websocketsIn (settings rulesCache)) = return ch
       | otherwise = wrapInWebSocket ch
 
     -- HACK: if we are not in firewall mode, don't resolve UUIDs/stubdom target
@@ -163,17 +163,17 @@ reportErr act = act >>= cont where
   cont (Left x) = warn (show x)
   cont _ = return ()
 
-conversation :: Dispatcher -> MVar Int -> Settings -> RulesCache -> (Channel,ArtefactSource) -> InOutTransforms -> IO ()
-conversation dispatcher counter settings rulesCache (client_ch,client_source) anonymous_xf =
+conversation :: Dispatcher -> MVar Int -> RulesCache -> (Channel,ArtefactSource) -> InOutTransforms -> IO ()
+conversation dispatcher counter rulesCache (client_ch,client_source) anonymous_xf =
   converse `E.catch` (\ex -> close client_ch >> E.throw (ex :: E.SomeException)) where
   converse = do
     -- websockets at least requires handshake
     handshake client_ch
-    (forward_ch, forward_domid) <- if autoAuth settings
+    (forward_ch, forward_domid) <- if autoAuth (settings rulesCache)
       then do
         info "automatic auth on, setting up conversation"
         (forward_ch, forward_domid) <-
-          makeOutgoingTransport (outgoingChannel settings)
+          makeOutgoingTransport (outgoingChannel (settings rulesCache))
         autoAuthenticate (client_ch,client_source) forward_ch
         return (forward_ch, forward_domid)
       else do
@@ -183,17 +183,17 @@ conversation dispatcher counter settings rulesCache (client_ch,client_source) an
           $ E.throw (AuthError client_ch "expected null byte")
         debug "null byte received from incoming transport - setting up conversation"
         (forward_ch, forward_domid) <-
-          makeOutgoingTransport (outgoingChannel settings)
+          makeOutgoingTransport (outgoingChannel (settings rulesCache))
         debug $ "outgoing transport: " ++ show forward_ch
         info  $ "authenticating client " ++ show client_ch ++ " " ++ show client_source
-        manualAuthenticate (client_ch,client_source) forward_ch (authDomainUuid settings)
+        manualAuthenticate (client_ch,client_source) forward_ch (authDomainUuid (settings rulesCache))
         --
         debug $ printf "auth done for %s" (show client_ch)
         return (forward_ch, forward_domid)
 
     -- message transform pipeline (includes firewall & some specific message spoofing)
     InOutTransforms xin xout <-
-      messageTransforms dispatcher settings rulesCache anonymous_xf (client_ch, client_source) (forward_ch, forward_domid)
+      messageTransforms dispatcher (settings rulesCache) anonymous_xf (client_ch, client_source) (forward_ch, forward_domid)
 
     let forwardI r = forward counter r xin
         forwardO r = forward counter r xout
@@ -353,13 +353,12 @@ forward counter route@(Route from to) xform =
 -- | incoming/outgoing message transformation pipeline based on settings
 messageTransforms ::
   Dispatcher
-  -> Settings
   -> RulesCache
   -> InOutTransforms
   -> (Channel, ArtefactSource)
   -> (Channel, DomID)
   -> IO InOutTransforms
-messageTransforms dispatcher settings rules anonymous_xf (client_ch, client_src) (forward_ch, forward_domid)
+messageTransforms dispatcher rules anonymous_xf (client_ch, client_src) (forward_ch, forward_domid)
   = do rpc_ctx <- rpcMkContext dispatcher
        mconcat <$> sequence [ pure anonymous_xf -- replace anonymous destinations. has to be before firewall.
                             , fire
@@ -367,23 +366,23 @@ messageTransforms dispatcher settings rules anonymous_xf (client_ch, client_src)
                             , change_name_owner ]
   where
     change_name_owner
-      | interceptGetOwnerName settings = changeNameOwnerXF
+      | interceptGetOwnerName (settings rules) = changeNameOwnerXF
       | otherwise = return mempty
     change_req_name
-      = InOutTransforms (changeRequestNameXF (agentServiceName settings) client_src)
+      = InOutTransforms (changeRequestNameXF (agentServiceName (settings rules)) client_src)
                         mempty
     fire = InOutTransforms <$> firewall_inc <*> firewall_out
     firewall_inc = firewallXF <$> createFirewall dispatcher
-                     FirewallConfig { fireActive = useFirewall settings
+                     FirewallConfig { fireActive = useFirewall (settings rules)
                                     , fireRules = rules
-                                    , fireVerbose = verbose settings
+                                    , fireVerbose = verbose (settings rules)
                                     , fireDirection = Incoming
                                     , fireSource = client_src
                                     , fireDestination = forward_domid }
     firewall_out = firewallXF <$> createFirewall dispatcher
-                     FirewallConfig { fireActive = useFirewall settings
+                     FirewallConfig { fireActive = useFirewall (settings rules)
                                     , fireRules = rules
-                                    , fireVerbose = verbose settings
+                                    , fireVerbose = verbose (settings rules)
                                     , fireDirection = Outgoing
                                     , fireSource = currentDomainSource
                                     , fireDestination = sourceDomainID client_src }
