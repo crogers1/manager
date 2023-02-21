@@ -28,6 +28,7 @@ module Msg.JsonConv
        , convFromMethodReturn
        , convFromSignal
        , convFromError
+       , parseSignatureInternal
        ) where
 
 import Control.Applicative
