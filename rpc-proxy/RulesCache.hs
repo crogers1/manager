@@ -17,7 +17,7 @@
 --
 
 {-# LANGUAGE Rank2Types, ScopedTypeVariables, ImpredicativeTypes, DatatypeContexts #-}
-module RulesCache (dropCache, test, testAugmented, mkRulesCache, RulesCache(..)) where
+module RulesCache (dropCache, test, testAugmented, mkRulesCache, RulesCache(..), RulesCachePure(..)) where
 import qualified Data.Map as M
 import Control.Concurrent.MVar.Lifted
 import Control.Applicative
@@ -82,6 +82,7 @@ getRulesFor settings rulesCache art =
     modifyMVar rulesCache $ \RulesCachePure { global = global,
                                               perUuid = perUuid } ->
       do newGlobal <- maybe (readGlobalRules settings) return global
+         info $ "parsed rules: " ++ show newGlobal
          (updateCache, specificRules) <- case sourceUuid (artefactSource art) of
              Just uuid -> case M.lookup uuid perUuid of
                  -- Cache hit.

@@ -364,10 +364,11 @@ messageTransforms ::
   -> (Channel, DomID)
   -> IO InOutTransforms
 messageTransforms dispatcher rules anonymous_xf (client_ch, client_src) (forward_ch, forward_domid)
-  = do rpc_ctx <- rpcMkContext dispatcher
+  = do 
        cur_cache <- takeMVar $ cache rules
        info $ "rules-pre-firewall global: " ++ show (global $ cur_cache)
        info $ "rules-pre-firewall per-uuid: " ++ show (perUuid $ cur_cache)
+       rpc_ctx <- rpcMkContext dispatcher
        mconcat <$> sequence [ pure anonymous_xf -- replace anonymous destinations. has to be before firewall.
                             , fire
                             , pure change_req_name
