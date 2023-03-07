@@ -90,6 +90,12 @@ instance Monoid InOutTransforms where
 proxy :: RulesCache -> IO ()
 proxy rulesCache = do
   info "starting DBUS bouncer"
+  cur_cache <- takeMVar $ cache $ rulesCache
+  info $ "RulesCache uuid: " ++ show (perUuid cur_cache)
+  info $ "RulesCache global: " ++ show (global cur_cache)
+  info $ "Settings rules-path: " ++ show (rulesPath $ settings rulesCache)
+  info $ "Settings use-firewall: " ++ show (useFirewall $ settings rulesCache)
+  info $ "Settings verbose: " ++ show (verbose $ settings rulesCache)
   (dispatcher, _) <- connectBus =<< systemBus
   anonymous_xf <- if interceptAnonymousDestinations (settings rulesCache)
                      then replaceAnonymousXF =<< rpcMkContext dispatcher
@@ -190,6 +196,7 @@ conversation dispatcher counter rulesCache (client_ch,client_source) anonymous_x
         return (forward_ch, forward_domid)
 
     -- message transform pipeline (includes firewall & some specific message spoofing)
+    info $ "about to call messageTransforms"
     InOutTransforms xin xout <-
       messageTransforms dispatcher rulesCache anonymous_xf (client_ch, client_source) (forward_ch, forward_domid)
 
@@ -358,6 +365,9 @@ messageTransforms ::
   -> IO InOutTransforms
 messageTransforms dispatcher rules anonymous_xf (client_ch, client_src) (forward_ch, forward_domid)
   = do rpc_ctx <- rpcMkContext dispatcher
+       cur_cache <- takeMVar $ cache rules
+       info $ "rules-pre-firewall global: " ++ show (global $ cur_cache)
+       info $ "rules-pre-firewall per-uuid: " ++ show (perUuid $ cur_cache)
        mconcat <$> sequence [ pure anonymous_xf -- replace anonymous destinations. has to be before firewall.
                             , fire
                             , pure change_req_name
