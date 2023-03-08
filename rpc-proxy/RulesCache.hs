@@ -17,14 +17,13 @@
 --
 
 {-# LANGUAGE Rank2Types, ScopedTypeVariables, ImpredicativeTypes, DatatypeContexts #-}
-module RulesCache (dropCache, test, testAugmented, mkRulesCache, RulesCache(..), RulesCachePure(..)) where
+module RulesCache (dropCache, test, testAugmented, mkRulesCache, RulesCache()) where
 import qualified Data.Map as M
 import Control.Concurrent.MVar.Lifted
 import Control.Applicative
 import qualified Control.Exception.Lifted as E
 import Control.Monad.Trans
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Arrow
 
 import Tools.Misc
@@ -44,27 +43,21 @@ data RulesCachePure = RulesCachePure { global :: Maybe [Rule]
 emptyCache :: RulesCachePure
 emptyCache = RulesCachePure { global = Nothing, perUuid = M.empty }
 
-data RulesCache = RulesCache { cache :: MVar RulesCachePure
-                             , ctx :: RpcContext
-                             , settings :: Settings}
-
-dropCache :: RulesCache -> IO ()
-dropCache rc = dropCache' $ cache rc
-
-runner :: RpcContext -> RpcProxy a -> IO a
-runner ctx action = (either (fail . show) return) =<< runRpcProxyM ctx action
-           
-test :: (Artefact a, MonadIO m) => RulesCache -> a -> RuleSubject -> m Bool
-test rc art sub = testAugmented' (settings rc) (cache rc) (runner (ctx rc)) return art sub
-
-testAugmented :: (Artefact a, MonadIO m) => RulesCache -> (Rule -> m Rule) -> a -> RuleSubject -> m Bool
-testAugmented rc rule art sub = testAugmented' (settings rc) (cache rc) (runner (ctx rc)) rule art sub
+data RulesCache = RulesCache { dropCache :: MonadIO m => m ()
+                             , test :: (Artefact a, MonadIO m) => a -> RuleSubject -> m Bool
+                             , testAugmented :: (Artefact a, MonadIO m) =>
+                               (Rule -> m Rule ) -> a -> RuleSubject -> m Bool}
 
 mkRulesCache :: Settings -> RpcProxy RulesCache
 mkRulesCache settings =
     do cache <- newMVar emptyCache
-       ctx <- rpcGetContext
-       return RulesCache { cache = cache, ctx = ctx, settings = settings }
+       runner <- mkRunner
+       return RulesCache { dropCache = liftIO $ dropCache' cache
+                         , test = testAugmented' settings cache runner return
+                         , testAugmented = testAugmented' settings cache runner }
+  where mkRunner :: RpcProxy (forall a. RpcProxy a ->  IO a)
+        mkRunner = (\action -> (<=<) (either (fail . show) return) . runRpcProxyM $ action)
+                   <$> rpcGetContext
 
 dropCache' :: MVar RulesCachePure -> IO ()
 dropCache' mvar = () <$ swapMVar mvar emptyCache

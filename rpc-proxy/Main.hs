@@ -65,8 +65,8 @@ main = do
               --       it vulnerable to problems in the RPO.expose
               --       above.  (I.e. if expose dies due to exception
               --       raised, then proxy should die to.)
-              liftIO $ proxy rulesCache
-         else liftIO $ proxy rulesCache
+              liftIO $ proxy rulesCache settings
+         else liftIO $ proxy rulesCache settings
 
 runClient :: RpcProxy a -> IO (Either RpError a)
 runClient client = flip runRpcProxyM client =<< rpcConnect
