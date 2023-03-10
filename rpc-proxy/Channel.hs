@@ -155,7 +155,8 @@ send (WebSocketCh s _ _) buf = W.sendFrame s (W.Text, BL.fromChunks [buf]) >> re
 
 send_all :: Channel -> ByteString -> IO ()
 send_all s buf =
-    send s buf >>= \sent ->
+    send s buf >>= \sent -> do 
+       info $ "sending: " ++ show buf
        when (sent < B.length buf) $
             do warn $ printf "short sent over %s -> %d out of %d" (show s) sent (B.length buf)
                send_all s (B.drop sent buf)

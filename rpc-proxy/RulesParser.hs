@@ -34,7 +34,6 @@ import Tools.Db
 type RulesParser a = GenParser Token () a
 type Token = (SourcePos, TokenData)
 data TokenData = Str String | Int Int | EOL deriving (Show)
-
 -- lexical parser
 positioned x = (,x) <$> getPosition
 lexeol_p = char '\n' >> positioned EOL

@@ -56,13 +56,13 @@ bufferSz = 4096
 unmarshaledMessages :: Channel -> IO [ Msg ]
 unmarshaledMessages sock =
     do inc <- incomingData sock
-       inc_ref <- newIORef $ LazyBS.toStrict inc --Going to try using lazyBS for incoming data like the original implementation, but
+       inc_ref <- newIORef inc --Going to try using lazyBS for incoming data like the original implementation, but
        recv_msgs <- unmarshaledMessages' inc_ref
        return $ recv_msgs
 
-unmarshaledMessages' :: IORef BS.ByteString -> IO [ Msg ]
+unmarshaledMessages' :: IORef LazyBS.ByteString -> IO [ Msg ]
 unmarshaledMessages' buf_ref =
-    do empty <- BS.null <$> readIORef buf_ref
+    do empty <- LazyBS.null <$> readIORef buf_ref
        if empty
           then return []
           else do -- will be filled with contents of single unmarshalled message (just the byte buffer)
@@ -71,7 +71,8 @@ unmarshaledMessages' buf_ref =
                   r <- unmarshalMessageM (reader contents_ref)
                   contents <- readIORef contents_ref
                   case r of
-                    Right m -> do ms <- unsafeInterleaveIO $ unmarshaledMessages' buf_ref
+                    Right m -> do info $ "receivedMessage: " ++ show m
+                                  ms <- unsafeInterleaveIO $ unmarshaledMessages' buf_ref
                                   return ( Msg m contents : ms )
                     Left er -> do warn $ printf "unmarshal error: %s" (show er)
                                   return []
@@ -80,18 +81,22 @@ unmarshaledMessages' buf_ref =
           do -- get the buffer with incoming data
              dat <- readIORef buf_ref
              -- get the sz bytes in x, rest in xs
-             let (x,xs) = BS.splitAt (fromIntegral sz) dat
+             let (x,xs) = LazyBS.splitAt (fromIntegral sz) dat
              -- cut the beginning bytes out of the incoming buffer
              writeIORef buf_ref xs
              -- append the beginning bytes to current message contents
-             modifyIORef contents (\current -> BS.append current x)
+             modifyIORef contents (\current -> BS.append current (compactChunks x))
              -- and finally return the begininng bytes to demarshaller
-             return x
+             return $ LazyBS.toStrict x
+
+compactChunks :: LazyBS.ByteString -> ByteString
+compactChunks b = foldl' BS.append BS.empty (LazyBS.toChunks b)
 
 -- Lazy chunks of incoming data, terminating on EOF or error
 incomingData :: Channel -> IO LazyBS.ByteString
 incomingData sock =
     ( do chunk <- recv sock bufferSz
+         info $ "inc data chunk: " ++ (show chunk)
          when ( BS.null chunk ) $ E.throw (EOF sock)
          other_chunks <- unsafeInterleaveIO $ incomingData sock
          return $ LazyBS.append (LazyBS.fromChunks [chunk]) other_chunks

@@ -24,6 +24,7 @@ module Msg.Json
        , JConvT(..)
        , newJConvContext
        , runJConvT
+       , printMethodCall
        ) where
 
 import Control.Applicative
@@ -49,6 +50,7 @@ import DBus.Internal.Types hiding (fromVariant,toVariant,signature)
 import qualified DBus.Internal.Types as DB
 import DBus.Internal.Message
 import DBus.Internal.Wire ( marshalMessage, unmarshalMessage, Endianness(..) )
+import DBus (receivedMessageBody, receivedMessageSerial)
 
 import Rpc.Core hiding (ObjectPath, BusName, MemberName, InterfaceName, mkObjectPath_, mkBusName_, mkMemberName_, mkInterfaceName_) --hiding (ObjectPath, BusName, MemberName, InterfaceName)
 import qualified Rpc.Core as Rpc
@@ -117,7 +119,7 @@ decodeJMsg str
   = case decode str of
          Ok v ->
            case (jmsgFromJson v) of
-             Just m -> return (Just m)
+             Just m -> warn ("parsed: " ++ jmsgToPrintable m) >> return (Just m)
              _ -> warn ("invalid json message: " ++ str) >> return Nothing
          _ -> warn ("json parse failed: " ++ str) >> return Nothing
 
@@ -154,6 +156,12 @@ incomingData sock =
     _err (Just (EOF s)) = do debug $ printf "%s on %s" (show (EOF s)) (show sock)
     _err (Just ex) = do warn $ printf "%s on %s" (show ex) (show sock)
     _err Nothing = do return ()
+
+jmsgToPrintable :: JMsg -> String
+jmsgToPrintable (JMsgReq m) = jreqToPrintable m
+jmsgToPrintable (JMsgSignal m) = jsigToPrintable m
+jmsgToPrintable (JMsgResp m) = jrespToPrintable m
+jmsgToPrintable (JMsgRespErr m) = jresperrToPrintable m
 
 jmsgToJson :: JMsg -> JSValue
 jmsgToJson (JMsgReq m) = jreqToJson m
@@ -258,7 +266,7 @@ mkMethodReturnMsg serial m
 -- | type conversion mode
 convMode :: forall m. (Monad m) => JMsg -> JConvT m TypeConvMode
 convMode msg
-  = return . fromMaybe GuessTypes =<< (provided `or` introspected)
+  = return . fromMaybe GuessTypes =<< (introspected)
   where
     provided, introspected :: JConvT m (Maybe TypeConvMode)
     provided
@@ -273,14 +281,44 @@ convMode msg
         cont (Just m) = return $ Just m
         cont Nothing  = q
 
+jmsgErrReq msg req tag act =
+  do 
+     types <- convMode msg
+     printConvMode types
+     x <- act
+     when (isNothing x) $
+       liftIO $ warn ("converting " ++ tag ++ " to dbus message FAILED")
+     return x
+  where
+  printConvMode (SpecifyTypes ts) = info $ "specifyTypes: " ++ show ts
+  printConvMode GuessTypes = info $ "guessTypes: no extra info, needs jarg list"
+
+-- x is a Maybe Msg
 jmsgErr tag act =
   do x <- act
      when (isNothing x) $
        liftIO $ warn ("converting " ++ tag ++ " to dbus message FAILED")
+     debugConv x tag
      return x
+ where
+   debugConv :: MonadIO m => Maybe Msg -> String -> m ()
+   debugConv (Just (Msg rm _ )) tag = liftIO $ info $ "debugConv to dbus: tag: " ++ tag ++ " body: " ++ (show $ receivedMessageBody rm) ++  " serial: " ++ (show $  receivedMessageSerial rm)
+ 
+
+printMethodCall :: MethodCall -> IO ()
+printMethodCall m = do
+    info $ "path: " ++ (show $ methodCallPath m)
+    info $ "intf: " ++ (show $ methodCallInterface m)
+    info $ "memb: " ++ (show $ methodCallMember m)
+    info $ "send: " ++ (show $ methodCallSender m)
+    info $ "dest: " ++ (show $ methodCallDestination m)
+    info $ "auto: " ++ (show $ methodCallAutoStart m)
+    info $ "repl: " ++ (show $ methodCallReplyExpected m)
+    info $ ((showList (methodCallBody m)) "")
+    
 
 instance MonadIO m => MsgConvert (JConvT m) JMsg Msg where
-  msgconvert m@(JMsgReq x) = MaybeT . jmsgErr "request" $
+  msgconvert m@(JMsgReq x) = MaybeT . jmsgErrReq m x "request" $
     do types <- convMode m
        return $ do m' <- convToMethodCall types x
                    let serial = mkSerial (intReqID $ jreqId x)
@@ -312,9 +350,17 @@ instance MonadIO m => MsgConvert (JConvT m) Msg JMsg where
     where
       err tag act =
         do x <- act
+           debugConv x
            when (isNothing x) $
              liftIO $ warn ("converting " ++ tag ++ " to json message FAILED")
-           return x
+           return x 
+      debugConv (Just m) = liftIO $ info $ jmsgToPrintable m
+      debugConv Nothing  = liftIO $ info "debugConv to json: nothing"
+--      debugConv (Just (JMsgReq     m)) = liftIO $ info $ printf "JReq: m:%s d:%s p:%s i:%s s:%s a:%s" (jreqMethod m) (jreqDest m) (jreqPath m) (jreqInterface m) (show $ jreqSignature m) (show $ jreqArgs m)
+--      debugConv (Just (JMsgResp    m)) = liftIO $ info $ printf "JResp: s:%s a:%s" (show $ jrespSignature m) (show $ map jrespArgs m)
+--      debugConv (Just (JMsgRespErr m)) = liftIO $ info $ printf "JRespErr: n:%s s:%s a:%s" (jerrName m) (show $ jerrSignature m) (show $ jerrArgs m)
+--      debugConv (Just (JMsgSignal  m)) = liftIO $ info $ printf "JSignal: p:%s m:%s i:%s s:%s a:%s" (jsigPath m) (jsigMethod m) (jsigInterface m) (show $ jsigSignature m) (show $ jsigArgs m)
+--      debugConv Nothing = liftIO $ info "debugConv: nothing"
 
 -- | dbus signature lookup via introspection
 introspect :: (MonadRpc e m) => BusName -> ObjectPath -> m I.Object
@@ -349,15 +395,19 @@ sigFinder
         where
           find_i n = find (\(I.Interface n' _ _ _) -> n == n')
           find_m n (I.Interface _ methods _ _) = find (\(I.Method n' _) -> n == n') methods
-          inparams (I.Method _ p) = p
+          inparams (I.Method _ p) = filter (\(I.MethodArg _ _ dir) -> dir == I.In) p
           paramSig (I.MethodArg _ ps _) = Just ps
 
     finder :: (MVar OMap) -> BusName -> ObjectPath -> InterfaceName -> MemberName -> m (Maybe [Type])
     finder cache service path intf meth =
       do obj <- intro (service,path)
+         liftIO $ info $ "finder: service: " ++ (show service) ++ " " ++ "path: " ++ (show path)
          case obj of
-           Nothing  -> return Nothing
-           Just obj -> return $ sig obj intf meth
+           Nothing  -> liftIO (info $ "finder Nothing") >> (return Nothing)
+           Just obj -> do
+                         liftIO $ info ("finder obj: " ++ (show obj))
+                         return $ sig obj intf meth
+
       where
         intro :: (BusName,ObjectPath) -> m (Maybe I.Object)
         intro key@(s,p) = do

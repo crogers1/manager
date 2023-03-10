@@ -36,4 +36,4 @@ Executable updatemgr
     hinotify,
     HTTP
   Main-Is: Main.hs
-  GHC-Options: -O2 -fwarn-incomplete-patterns -dynamic -threaded -rtsopts
+  GHC-Options: -O2 -fwarn-incomplete-patterns -dynamic -threaded -optc-no-pie -optl-no-pie

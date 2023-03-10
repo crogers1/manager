@@ -36,7 +36,7 @@ Executable xenmgr
     old-locale
 
   Main-Is: Main.hs
-  GHC-Options: -O2 -Werror -Wno-deprecations -fwarn-incomplete-patterns -threaded -dynamic
+  GHC-Options: -O2 -Werror -Wno-deprecations -fwarn-incomplete-patterns -threaded -dynamic -optc-no-pie -optl-no-pie
 
   Other-Modules:
     Paths_xenmgr

@@ -29,6 +29,7 @@ module Msg.JsonConv
        , convFromSignal
        , convFromError
        , parseSignatureInternal
+       , convJArgs
        ) where
 
 import Control.Applicative
@@ -46,6 +47,8 @@ import qualified Data.Text.Internal as T
 import qualified Data.Text.Internal.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TE
 import qualified Foreign as F
+import qualified Data.Vector as V
+import Tools.Log 
 
 import DBus.Internal.Types
 import DBus.Internal.Message
@@ -64,7 +67,7 @@ import System.IO.Unsafe
 mkSerial :: (Integral a) => a -> Serial
 mkSerial v = fromJust . fromVariant . toVariant $ (fromIntegral v :: Word32)
 fromSerial :: (Integral a) => Serial -> a
-fromSerial s = fromIntegral (read (show s) :: Word32)
+fromSerial s = fromIntegral $ serialValue s
 
 data TypeConvMode
    = SpecifyTypes [Type]
@@ -84,12 +87,12 @@ dtypes GuessTypes as = map dtype as
 
 convToMethodCall :: TypeConvMode -> JReq -> Maybe MethodCall
 convToMethodCall sig r
-  = MethodCall
+ = MethodCall
       <$> parseObjectPathInternal (jreqPath r)
       <*> pure (parseInterfaceName $ jreqInterface r)
       <*> parseMemberName (jreqMethod r)
-      <*> pure (parseBusName $ jreqDest r)
       <*> pure Nothing
+      <*> pure (parseBusName $ jreqDest r)
       <*> pure True
       <*> pure True
       <*> convJArgs sig (jreqArgs r)
@@ -138,8 +141,13 @@ convJArg TypeDouble (JArgNumber x) = Just $ toVariant (realToFrac x :: Double)
 convJArg TypeSignature (JArgString x) = toVariant <$> parseSignatureInternal x
 convJArg TypeObjectPath (JArgString x) = toVariant <$> parseObjectPathInternal x
 convJArg (TypeArray et) (JArgArray xs)
-  = liftM toVariant . arrayConv et =<< mapM (convJArg et) xs
-  where arrayConv et ls = if (length ls > 0) then Just ls else Nothing
+  = liftM toVariant . arrayConv et . map (toValue) =<< mapM (convJArg et) xs
+  where 
+    -- [Jargs] --mapM--> [Variant] -map-> [Value]
+    -- now arrayConv just the list length, then converts the [Value] to Vector of Values, then use
+    -- to enable the Array contructor, then wrap that in a Maybe
+    arrayConv et ls = if (length ls > 0) then Just $ Array et (V.fromList ls) else Just $ Array et (V.fromList [toValue $ "xyz"])
+
 convJArg (TypeDictionary kt vt) (JArgDict d)
   = fmap toVariant . dictionaryFromItems kt vt =<< mapM item d
   where item (k,v) = (,) <$> convJArg kt (JArgString k) <*> convJArg vt v
@@ -204,6 +212,8 @@ convVariant v = go (variantType v) where
   go TypeSignature = JArgString . formatSignature <$> fromVariant v
   go TypeObjectPath = JArgString . formatObjectPath <$> fromVariant v
   go TypeVariant = convVariant =<< fromVariant v
+  go (TypeStructure ts)
+    = liftM JArgArray . mapM convVariant . structureItems =<< fromVariant v
   go (TypeArray et)
     = liftM JArgArray . mapM convVariant . arrayItems =<< fromVariant v
   go (TypeDictionary _ _)

@@ -90,12 +90,9 @@ instance Monoid InOutTransforms where
 proxy :: RulesCache -> Settings -> IO ()
 proxy rulesCache settings = do
   info "starting DBUS bouncer"
-  cur_cache <- takeMVar $ cache $ rulesCache
-  info $ "RulesCache uuid: " ++ show (perUuid cur_cache)
-  info $ "RulesCache global: " ++ show (global cur_cache)
-  info $ "Settings rules-path: " ++ show (rulesPath $ settings rulesCache)
-  info $ "Settings use-firewall: " ++ show (useFirewall $ settings rulesCache)
-  info $ "Settings verbose: " ++ show (verbose $ settings rulesCache)
+  info $ "Settings rules-path: " ++ show (rulesPath $ settings)
+  info $ "Settings use-firewall: " ++ show (useFirewall $ settings)
+  info $ "Settings verbose: " ++ show (verbose $ settings)
   (dispatcher, _) <- connectBus =<< systemBus
   anonymous_xf <- if interceptAnonymousDestinations settings
                      then replaceAnonymousXF =<< rpcMkContext dispatcher
@@ -196,7 +193,6 @@ conversation dispatcher counter settings rulesCache (client_ch,client_source) an
         return (forward_ch, forward_domid)
 
     -- message transform pipeline (includes firewall & some specific message spoofing)
-    info $ "about to call messageTransforms"
     InOutTransforms xin xout <-
       messageTransforms dispatcher settings rulesCache anonymous_xf (client_ch, client_source) (forward_ch, forward_domid)
 
@@ -207,7 +203,7 @@ conversation dispatcher counter settings rulesCache (client_ch,client_source) an
              toIO . forwardO $ reverseRoute r
 
     -- FIXME: avoid explosion of cases?
-    case (jsonIn (settings rulesCache), jsonOut (settings rulesCache)) of
+    case (jsonIn settings, jsonOut settings) of
       (False, False) ->
         do let route = Route client_ch forward_ch :: Route Msg Msg
            forwardTwoWays id route
@@ -474,9 +470,10 @@ replaceAnonymousXF context = do
               
       replaceDestination m@(Msg (ReceivedMethodCall serial call) buf) new_dest
         = case marshal of
-            Right buf  -> return $ Msg rm' buf
+            Right buf  -> liftIO $ debugSpoofedCall rm' >> (return $ Msg rm' buf)
             Left  err  -> warn (show err) >> dropMsg
           where
+            debugSpoofedCall (ReceivedMethodCall serial call) = warn ("spoofed:") >> printMethodCall call
             rm' = ReceivedMethodCall serial (spoofed call)
             marshal = marshalMessage BigEndian serial (spoofed call)
             spoofed call = call { methodCallDestination = Just (fromString new_dest) }
@@ -528,8 +525,8 @@ changeNameOwnerXF = do
                     Left  err  -> lift (warn (show err)) >> dropMsg
                   where
                     new_m = MethodReturn { methodReturnSerial = methodReturnSerial ret
-                                         , methodReturnDestination = methodReturnDestination ret
                                          , methodReturnSender = methodReturnSender ret
+                                         , methodReturnDestination = methodReturnDestination ret
                                          , methodReturnBody = new_body }
                     marshal = marshalMessage BigEndian serial new_m
 
@@ -557,8 +554,8 @@ changeRequestNameXF service (ArtefactSource _ maybe_uuid _)
         MethodCall { methodCallPath          = pathOrgFreedesktopDBus
                    , methodCallMember        = memberRequestName
                    , methodCallInterface     = Just intfOrgFreedesktopDBus
-                   , methodCallDestination   = Just nameOrgFreedesktopDBus
                    , methodCallSender        = methodCallSender call
+                   , methodCallDestination   = Just nameOrgFreedesktopDBus
                    , methodCallReplyExpected = methodCallReplyExpected call
                    , methodCallAutoStart     = methodCallAutoStart call
                    , methodCallBody          = replace_name n (methodCallBody call) }

@@ -150,13 +150,14 @@ createFirewall client c
                 dest  = fromMaybe em $ artefactDestination artefact
                 intf  = fromMaybe em $ artefactInterface artefact
                 memb  = fromMaybe em $ artefactMember artefact
+                propint = fromMaybe em $ artefactPropertyInterface artefact
                 reply_serial = case rm of
                   ( ReceivedMethodReturn _ m ) -> Just $ methodReturnSerial m
                   ( ReceivedMethodError _ m ) -> Just $ methodErrorSerial m
                   _ -> Nothing
                 description rulet =
-                  printf "(%d->%d) %s %s { sender='%s' dest='%s' intf='%s' member='%s' serial='%s' reply-to='%s' }"
-                            domid (fireDestination c) rulet (show typ) sndr dest intf memb
+                  printf "(%d->%d) %s %s { sender='%s' dest='%s' intf='%s' member='%s' serial='%s' reply-to='%s' propint='%s'}"
+                            domid (fireDestination c) rulet (show typ) sndr dest intf memb propint
                             (show $ receivedMessageSerial rm) (show reply_serial)
 
             access <- if fireActive c && domid /= 0

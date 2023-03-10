@@ -29,6 +29,10 @@ module Msg.JsonRpc
        , jrespFromJson
        , jerrFromJson
 
+       , jreqToPrintable
+       , jsigToPrintable
+       , jrespToPrintable
+       , jresperrToPrintable
        , jreqToJson
        , jsignalToJson
        , jrespToJson
@@ -41,6 +45,7 @@ import Control.Monad
 import Data.List
 import qualified Data.Text.Lazy as TL
 import Text.JSON
+import Text.Printf
 
 import Tools.Text
 
@@ -161,6 +166,36 @@ jerrFromJson _ = Nothing
 
 str = JSString . toJSString
 
+jreqToPrintable :: JReq -> String
+jreqToPrintable r
+  =  "@@type: request" ++ " " ++ 
+     "@@method: " ++ (jreqMethod r) ++ " " ++
+     "@@destination: " ++ (jreqDest r) ++ " " ++
+     "@@path: " ++ (jreqPath r) ++ " " ++ 
+     "@@interface: " ++ (jreqInterface r) ++ " " ++
+     "@@signature: " ++ (show $ jreqSignature r) ++ " " ++
+     "@@ARGS: " ++ (unlines $ map valuePrintable $ jreqArgs r)
+    
+jsigToPrintable :: JSignal -> String
+jsigToPrintable r
+  =  "@@type: signal" ++ " " ++ 
+     "@@method: " ++ (jsigMethod r) ++ " " ++
+     "@@path: " ++ (jsigPath r) ++ " " ++ 
+     "@@interface: " ++ (jsigInterface r) ++ " " ++
+     "@@ARGS: " ++ (unlines $ map valuePrintable $ jsigArgs r)
+
+jrespToPrintable :: JResp -> String
+jrespToPrintable r
+  =  "@@type: resp" ++ " " ++ 
+     "@@ARGS: " ++ (unlines $ map valuePrintable $ jrespArgs r)
+
+jresperrToPrintable :: JRespErr -> String
+jresperrToPrintable r
+  =  "@@type: signal" ++ " " ++ 
+     "@@name: " ++ (jerrName r) ++ " " ++
+     "@@ARGS: " ++ (unlines $ map valuePrintable $ jerrArgs r)
+
+
 jreqToJson :: JReq -> JSValue
 jreqToJson r
   = JSObject $ toJSObject [
@@ -222,4 +257,13 @@ value (JArgNumber v) = JSRational False v
 value (JArgString v) = JSString $ toJSString v
 value (JArgArray xs) = JSArray (map value xs)
 value (JArgDict kv) = JSObject $ toJSObject (map f kv) where f (k,v) = (k, value v)
+
+
+valuePrintable :: JArg -> String
+valuePrintable (JArgBool v) = show v
+valuePrintable (JArgNumber v) = show v
+valuePrintable (JArgString v) = show v
+valuePrintable (JArgArray xs) = unwords $ map valuePrintable xs
+valuePrintable (JArgDict kv) = unwords $ (map f kv) where f (k,v) = (printf "%s:%s" k (valuePrintable v))
+
 

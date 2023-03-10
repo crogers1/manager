@@ -24,6 +24,7 @@ import Control.Applicative
 import Types
 import Tools.XenStore
 
+
 uuidOfDomid :: DomID -> IO (Maybe Uuid)
 uuidOfDomid domid =
     do path <- xsRead $ "/local/domain/" ++ show domid ++ "/vm"
@@ -38,7 +39,7 @@ domidOfUuid uuid =
        return . fmap read $ domidStr
 
 stubdomTargetDomID :: DomID -> IO (Maybe DomID)
-stubdomTargetDomID domid =
+stubdomTargetDomID domid = 
     fmap read <$> xsRead ("/local/domain/" ++ show domid ++ "/target")
 
 invalidDomID :: Int

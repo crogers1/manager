@@ -37,11 +37,12 @@ Executable rpc-proxy
     xchwebsocket,
     xchxenstore,
     xchdb,
+    vector,
     hashtables
   Main-Is: Main.hs
   if flag(stubdom)
     GHC-Options: -O2 -fwarn-incomplete-patterns -static -optl-static -optl-pthread
   else
-    GHC-Options: -O2 -fwarn-incomplete-patterns -dynamic -threaded
+    GHC-Options: -O2 -fwarn-incomplete-patterns -dynamic -threaded -cpp -optc-no-pie -optl-no-pie
   Other-Modules: Tools.Serial
   C-sources: cbits/serial.c
